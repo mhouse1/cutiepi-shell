@@ -1,43 +1,109 @@
-## CutiePi shell
+# CutiePi Shell
 
-A mobile UI for Raspberry Pi OS.
+A Qt/QML tablet shell for Raspberry Pi OS style deployments.
 
-![](screenshots/cutiepi-shell-heroshot.png)
+This repository contains:
 
-CutiePi shell is a mobile UI built for [CutiePi tablet](https://cutiepi.io) project. Check out the [demo video](https://www.youtube.com/watch?v=ivkR3tvci1Q) 
+- The main shell application (browser-first UI, settings, lock/power flows)
+- A systray helper application (battery/rotation integration)
+- Runtime assets under source/opt/cutiepi-shell
+- Service wiring for system startup
+- Project documentation under docs/
+
+## Current Project State
+
+- Version: 0.0.1 (from VERSION)
+- UI stack: Qt Widgets + Qt Quick/QML + QtWebEngine
+- Network integration in QML: NetworkManager DBus
+- Optional adblocking path: Brave ad-block library (build-time define)
+- Deployment target layout assumes /opt/cutiepi-shell runtime assets
+
+Reference architecture documentation:
+
+- docs/ARCHITECTURE.md
+
+## Repository Layout
+
+- source/app
+	- Main shell C++ entry point and backlight integration
+	- qmake project for shell binary
+- source/opt/cutiepi-shell
+	- Shell QML, dialogs, JavaScript tab logic, launcher script, assets
+- source/systray
+	- Separate systray Qt/QML helper
+- source/lib/systemd/system
+	- Systemd service unit
+- docs
+	- ADRs, architecture docs, code review cycles, job aids, roadmap, etc.
 
 ## Features
 
-* Lockscreen with sleep/wake button events handling 
-* Web browser, terminal emulator, and on-screen keyboard 
-* Built-in adblocker, using ABP-compatible filters 
-* Side-tab for multitasking 
-* WiFi configurator 
-* Battery charging status and level reading (through UART) 
-* Orientation sensor support (accelerometer and gyroscope) 
+- Touch-first full-screen shell UI
+- Tabbed web browsing with side drawer
+- Built-in settings app tab and factory mode tab
+- Virtual keyboard integration
+- Wi-Fi scan/connect flow through DBus
+- Battery and charging status integration
+- Orientation handling and lock/power-off interactions
 
-Cutiepi shell is written entirely in Qt using EGLFS QPA, and can be ported to [Wayland](https://github.com/cutiepi-io/cutiepi-shell/tree/wayland) or other platform and distributions with EGL support.
+## Build
 
-### Screenshots 
+This project uses qmake projects in source/app and source/systray.
 
-| ![](screenshots/sidetab.png) | ![](screenshots/wifi.png) |
-| ------------- | ------------- | 
-| ![](screenshots/terminal.png)  | ![](screenshots/settings.png) |
+### Main shell
 
-## Dependencies 
+From source/app:
 
-- [Qt](http://download.qt.io/official_releases/qt/5.12/) `5.12` or later version 
-- [Yat](https://github.com/jorgen/yat) for terminal emulator 
-- [nemo-qml-plugin-dbus](https://github.com/sailfishos/nemo-qml-plugin-dbus.git) for DBus signals 
-- [libconnman-qt](https://git.sailfishos.org/mer-core/libconnman-qt) and [ConnMan](https://01.org/connman) for WiFi configuration 
-- [CutiePi firmware](https://github.com/cutiepi-io/cutiepi-firmware) and [middleware plugins](https://github.com/cutiepi-io/cutiepi-middleware) for battery and sleep/wake button related functions 
-- [ad-block](https://github.com/brave/ad-block) and [easylist](https://easylist.to/easylist/easylist.txt) for adblocker (optional) 
+```bash
+qmake
+make
+```
 
-## License 
+Optional adblock build:
 
-* CutiePi shell sources are licensed under the terms of the GNU General Public License version 3 or, at your option, any later version. 
-* And all documentations are licensed under a Creative Commons BY-SA 4.0 international license. 
-* This project uses [Font Awesome](https://fontawesome.com/license/free) fonts, which is licensed under `SIL OFL 1.1 License`. 
+```bash
+qmake DEFINES+=USE_ADBLOCK
+make
+```
 
-* Icons are from the `gnome-user-docs` package with following copyright information `Copyright: Copyright (C) 2010 - 2014 Shaun McCance`, and licensed under `CC-BY-3.0`. 
-* Wallpapers are designed by [Even Wu](https://twitter.com/evenwu1978) licensed under CC-BY 
+If USE_ADBLOCK is enabled, third-party ad-block dependencies referenced in source/app/README.md must be available.
+
+### Systray helper
+
+From source/systray:
+
+```bash
+qmake
+make
+```
+
+## Runtime Dependencies
+
+- Qt (project imports indicate Qt 5.15-era modules)
+- QtWebEngine
+- Nemo DBus QML plugin
+- Process QML plugin used by shell and systray
+- Yat terminal QML plugin
+- NetworkManager DBus service for Wi-Fi UI paths
+- SensorProxy DBus service for orientation paths
+- MCU integration services/plugins used by platform deployment
+
+## Runtime and Deployment Notes
+
+- Runtime assets are expected under /opt/cutiepi-shell.
+- The service unit is at source/lib/systemd/system/cutiepi-shell.service.
+- Launcher script is source/opt/cutiepi-shell/cutiepi-shell.
+
+Important: the launcher script sets QT_QPA_PLATFORM=eglfs while source/app/main.cpp sets QT_QPA_PLATFORM=xcb at process startup. This should be treated as an active deployment ambiguity until unified.
+
+## Documentation
+
+- Architecture: docs/ARCHITECTURE.md
+- Contributor guidance: CONTRIBUTING.md
+- Rules of engagement: AGENTS.md
+- Review cycles: docs/code-review/
+
+## License
+
+- Source code is licensed under GPL-3.0-or-later (see LICENSE).
+- Documentation licensing and third-party asset/license attributions should be maintained as documented in repository materials.
