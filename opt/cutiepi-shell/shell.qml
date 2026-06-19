@@ -33,6 +33,7 @@ import QtGraphicalEffects 1.0
 
 import Qt.labs.settings 1.0
 
+import MeeGo.Connman 0.2
 import Process 1.0
 import "tabControl.js" as Tab
 
@@ -111,6 +112,49 @@ Window {
     }
 
     Process { id: process }
+
+    Timer {
+        id: scanTimer
+        interval: (root.state == "setting") ? 5000 : 30000
+        running: networkingModel.powered && (root.state !== "locked")
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: { networkingModel.requestScan() }
+    }
+
+    TechnologyModel {
+        id: networkingModel
+        name: "wifi"
+        property string networkName
+    }
+
+    NetworkManager {
+        id: networkManager
+        onConnectedChanged: {
+            if (connected) wifiIndicator.source = "icons/network-wireless-signal-excellent-symbolic.svg"
+        }
+    }
+
+    UserAgent {
+        id: userAgent
+        onUserInputRequested: {
+            root.state = "popup"
+            scanTimer.running = false;
+            passwordInput.text = "";
+            var view = { "fields": [] };
+            for (var key in fields) {
+                view.fields.push({
+                    "name": key, "id": key.toLowerCase(),
+                    "type": fields[key]["Type"],
+                    "requirement": fields[key]["Requirement"]
+                });
+            }
+        }
+        onErrorReported: {
+            notification.showNotification('WiFi error: ' + error);
+            wifiIndicator.source = "icons/network-wireless-signal-none-symbolic.svg";
+        }
+    }
 
     // Polls /run/battery/state.json written by upspack-monitor every 30 s.
     Timer {
@@ -514,7 +558,7 @@ Window {
                 anchors.topMargin: 65 
                 anchors.leftMargin: 0
                 z: 3
-                enabled: (root.state == "setting" || root.state == "drawer")
+                enabled: (root.state == "setting" || root.state == "popup" || root.state == "drawer")
                 onClicked: { 
                     //console.log('overlayMouseArea clicked')
                     if ( root.state == "setting" || root.state == "drawer") 
@@ -777,14 +821,69 @@ Window {
                     color: "#ECEFF4"
                 }
 
-                Text {
+                ListView {
+                    id: wifiListView
+                    visible: root.state == "setting"
+                    clip: true
                     anchors {
-                        top: separator.bottom; topMargin: 20
-                        horizontalCenter: parent.horizontalCenter
+                        top: separator.bottom; bottom: parent.bottom
+                        left: parent.left; right: parent.right
+                        topMargin: 15; bottomMargin: 15
                     }
-                    text: "Configure WiFi via connman"
-                    color: "white"
-                    font.pointSize: 9
+                    model: networkingModel
+                    delegate: Rectangle {
+                        height: 45
+                        width: wifiListView.visible ? wifiListView.width : 0
+                        color: 'transparent'
+                        Row {
+                            width: parent.width - 40; height: parent.height; spacing: 10
+                            Rectangle {
+                                width: 30; height: 20; color: 'transparent'
+                                anchors.verticalCenter: parent.verticalCenter
+                                Text {
+                                    font.family: fontAwesome.name; font.pixelSize: 12
+                                    text: (modelData.state == "online" || modelData.state == "ready") ? "" : ""
+                                    color: "white"
+                                    anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                            Text {
+                                text: (modelData.name == "") ? "[Hidden WiFi]" : modelData.name
+                                color: "white"; elide: Text.ElideRight; width: 230
+                                anchors.verticalCenter: parent.verticalCenter; font.pointSize: 9
+                            }
+                        }
+                        Row {
+                            anchors { right: parent.right; top: parent.top; bottom: parent.bottom; rightMargin: 30 }
+                            width: 50; spacing: 10
+                            Rectangle {
+                                width: 20; height: 20; color: 'transparent'
+                                anchors.verticalCenter: parent.verticalCenter
+                                Image {
+                                    width: 20; height: width; sourceSize.width: width*2; sourceSize.height: height*2
+                                    source: (modelData.security[0] == "none") ? "" : "icons/network-wireless-encrypted-symbolic.svg"
+                                }
+                            }
+                            Image {
+                                width: 20; height: width; sourceSize.width: width*2; sourceSize.height: height*2
+                                anchors.verticalCenter: parent.verticalCenter
+                                source: if (modelData.strength >= 55) { return "icons/network-wireless-signal-excellent-symbolic.svg" }
+                                    else if (modelData.strength >= 50) { return "icons/network-wireless-signal-good-symbolic.svg" }
+                                    else if (modelData.strength >= 45) { return "icons/network-wireless-signal-ok-symbolic.svg" }
+                                    else if (modelData.strength >= 30) { return "icons/network-wireless-signal-weak-symbolic.svg" }
+                                    else { return "icons/network-wireless-signal-none-symbolic.svg" }
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: {
+                                if (modelData.state == "idle" || modelData.state == "failure") {
+                                    networkingModel.networkName = modelData.name
+                                    modelData.requestConnect()
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -839,10 +938,14 @@ Window {
                         width: 34; height: width; sourceSize.width: width*2; sourceSize.height: height*2;
                     }
 
-                    // wifi — static icon; connman manages the connection outside the shell
                     Image {
                         id: wifiIndicator
-                        source: "icons/network-wireless-signal-none-symbolic.svg"
+                        source: if (networkManager.state == "idle") { "icons/network-wireless-signal-none-symbolic.svg" }
+                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 55) { "icons/network-wireless-signal-excellent-symbolic.svg" }
+                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 50) { "icons/network-wireless-signal-good-symbolic.svg" }
+                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 45) { "icons/network-wireless-signal-ok-symbolic.svg" }
+                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 30) { "icons/network-wireless-signal-weak-symbolic.svg" }
+                            else { "icons/network-wireless-connected-symbolic.svg" }
                         width: 34; height: width; sourceSize.width: width*2; sourceSize.height: height*2;
                     }
 
@@ -893,6 +996,70 @@ Window {
             }
 
 
+
+            // WiFi password popup
+            Item {
+                id: popupScreen
+                z: 5
+                visible: root.state == "popup"
+                anchors.fill: parent
+                Rectangle {
+                    anchors.fill: parent; color: 'grey'; opacity: 0.4
+                    MouseArea { anchors.fill: parent; enabled: popupScreen.visible }
+                }
+                Rectangle {
+                    id: dialog
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top; anchors.topMargin: 50
+                    radius: 15; width: 600; height: 300; color: 'white'
+                    Text {
+                        id: dialogTitle
+                        anchors { top: parent.top; topMargin: 15; horizontalCenter: parent.horizontalCenter }
+                        text: 'Enter the password for "' + networkingModel.networkName + '"'
+                        wrapMode: Text.Wrap; font.pointSize: 9
+                    }
+                    TextField {
+                        id: passwordInput
+                        anchors { top: dialogTitle.bottom; horizontalCenter: parent.horizontalCenter; margins: 10; topMargin: 30 }
+                        width: parent.width - 50; height: 40; font.pointSize: 9
+                        echoMode: showPassword.checked ? TextInput.Normal : TextInput.Password
+                    }
+                    CheckBox {
+                        id: showPassword
+                        text: qsTr("Show password"); font.pointSize: 10; checked: false
+                        anchors { top: passwordInput.bottom; left: passwordInput.left; margins: 30; leftMargin: 10 }
+                    }
+                    Row {
+                        anchors { left: parent.left; bottom: parent.bottom; margins: 10 }
+                        height: 60; width: parent.width; spacing: 340
+                        Rectangle {
+                            height: 60; width: 120; color: 'transparent'
+                            Text { text: 'Cancel'; font.pointSize: 10; anchors.centerIn: parent }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    root.state = "normal";
+                                    userAgent.sendUserReply({});
+                                    scanTimer.running = true;
+                                }
+                            }
+                        }
+                        Rectangle {
+                            height: 60; width: 120; radius: 10; color: '#4875E2'
+                            Text { text: 'Join'; font.pointSize: 10; font.bold: true; anchors.centerIn: parent; color: 'white' }
+                            MouseArea {
+                                anchors.fill: parent
+                                onClicked: {
+                                    root.state = "normal";
+                                    scanTimer.running = true;
+                                    userAgent.sendUserReply({"Passphrase": passwordInput.text});
+                                    wifiIndicator.source = "icons/network-wireless-acquiring-symbolic.svg";
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             // on-screen keyboard 
             InputPanel {
@@ -1068,6 +1235,7 @@ Window {
                 PropertyChanges { target: settingSheet; y: 0 } 
             },
             State { name: "locked" }, 
+            State { name: "popup" }, 
             State { name: "switchoff" }, 
             State{
                 name: "drawer"
