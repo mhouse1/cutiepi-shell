@@ -65,7 +65,7 @@ Item {
                     if(switchoffThumb.x >= (switchoffSlider.width - switchoffThumb.width - 10)){
                         switchoffThumb.x = 5;
                         switchoffScreen = false;
-                        mcuInfo.confirmShutdown();
+                        process.start("systemctl", ["poweroff"]);
                     }
                 }
             }
@@ -90,10 +90,7 @@ Item {
             }
             MouseArea {
                 anchors.fill: parent
-                onClicked: {
-                    switchoffScreen = false
-                    mcuInfo.cancelShutdown();
-                }
+                onClicked: { switchoffScreen = false }
             }
         }
     }

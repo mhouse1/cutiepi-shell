@@ -26,6 +26,20 @@
 #include <QDebug>
 #include <QThread>
 #include <QFile>
+#include <QProcess>
+#include <qqml.h>
+
+// Minimal Process QML type — runs detached shell commands.
+// Replaces the original CutiePi Process plugin which is not in this tree.
+class ProcessWrapper : public QObject {
+    Q_OBJECT
+public:
+    explicit ProcessWrapper(QObject *parent = nullptr) : QObject(parent) {}
+    Q_INVOKABLE void start(const QString &program,
+                           const QStringList &args = QStringList()) {
+        QProcess::startDetached(program, args);
+    }
+};
 
 #ifdef USE_ADBLOCK
 #include "third_party/ad-block/ad_block_client.h"
@@ -70,11 +84,10 @@ private:
 int main(int argc, char *argv[])
 {
     qputenv("QT_IM_MODULE", "qtvirtualkeyboard");
-    qputenv("QT_QPA_PLATFORM", "eglfs");
-    qputenv("QT_QPA_EGLFS_INTEGRATION", "eglfs_kms");
-
-    qputenv("XDG_RUNTIME_DIR", "/run/user/1000");
-    qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus");
+    // QT_QPA_PLATFORM is set by the systemd service (linuxfb); do not override here.
+    // XDG_RUNTIME_DIR defaults to /tmp/user/0 for root when not already set.
+    if (qgetenv("XDG_RUNTIME_DIR").isEmpty())
+        qputenv("XDG_RUNTIME_DIR", "/tmp/user/0");
 
     QtWebEngine::initialize();
     QGuiApplication app(argc, argv);
@@ -82,6 +95,8 @@ int main(int argc, char *argv[])
     app.setOrganizationName("CutiePi");
     app.setOrganizationDomain("cutiepi.io");
     app.setApplicationName("Shell");
+
+    qmlRegisterType<ProcessWrapper>("Process", 1, 0, "Process");
 
     QQmlApplicationEngine engine;
 

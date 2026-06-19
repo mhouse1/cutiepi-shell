@@ -1,9 +1,9 @@
 TARGET = shell
 TEMPLATE = app
 CONFIG -= app_bundle
-QT += qml quick webengine
+QT += qml quick webengine core
 
-SOURCES = main.cpp 
+SOURCES = main.cpp
 
 contains(DEFINES, USE_ADBLOCK) {
 	SOURCES += third_party/ad-block/ad_block_client.cc \

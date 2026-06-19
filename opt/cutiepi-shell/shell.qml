@@ -24,7 +24,6 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
 import QtQuick.Controls 2.1
-import QtMultimedia 5.15 
 
 import QtWebEngine 1.7
 import QtQuick.VirtualKeyboard 2.2
@@ -34,14 +33,8 @@ import QtGraphicalEffects 1.0
 
 import Qt.labs.settings 1.0
 
-import QtSensors 5.11
-
-import MeeGo.Connman 0.2 
-import Yat 1.0 as Yat
-
-import McuInfo 1.0
 import Process 1.0
-import "tabControl.js" as Tab 
+import "tabControl.js" as Tab
 
 Window {  
     id: view
@@ -61,13 +54,9 @@ Window {
     property variant wallpaperUrl: settings.value("wallpaperUrl", "file:///usr/share/rpd-wallpaper/boombox.png");
     property variant wallpaperFontColor: 'white' // '#525353'
 
-    property real pitch: 0.0
-    property real roll: 0.0
-    readonly property double radians_to_degrees: 180 / Math.PI
-
     property variant orientation: 270
     property variant portraitMode: (orientation === 180 || orientation === 0)
-    property variant sensorEnabled: true 
+    property variant sensorEnabled: false
     property variant keyboardPosition: { 
         '270': { x: -40, y: 440, hidden_x: 360, hidden_y: 440 }, 
         '180': { x: 0,  y: 0, hidden_x: 0, hidden_y: -250 }, 
@@ -75,7 +64,6 @@ Window {
         '0': { x: 0, y: 1030, hidden_x: 0, hidden_y: 1280 } 
     } 
 
-    property string mcuVersion: ""
     property string currentTab: ""
     property bool hasTabOpen: (tabModel.count !== 0) && (typeof(Tab.itemMap[currentTab]) !== "undefined")
 
@@ -85,11 +73,8 @@ Window {
     }
 
     Component.onCompleted: {
-        mcuInfo.start();
         Tab.openNewAppTab("page-"+Tab.salt(), 'factorymode');
         process.start("rfkill", ["unblock", "all"]);
-
-        setScreenBrightness(100);
         setAudioVolume(80);
     }
 
@@ -110,12 +95,9 @@ Window {
         if (screenLocked) {
             turnScreenOff();
             root.state = "locked";
-            process.start("sudo", ["cpufreq-set", "-g", "powersave"]);
-            orientation = 270; 
-            sensorEnabled = false;
+            orientation = 270;
         } else {
             turnScreenOn();
-            process.start("sudo", ["cpufreq-set", "-g", "conservative"]);
         }
     }
 
@@ -128,161 +110,28 @@ Window {
         }
     }
 
+    Process { id: process }
+
+    // Polls /run/battery/state.json written by upspack-monitor every 30 s.
     Timer {
-        id: scanTimer
-        interval: (root.state == "setting") ? 5000 : 30000
-        running: networkingModel.powered && ( root.state !== "locked" )
+        id: batteryPollTimer
+        interval: 30000
+        running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            networkingModel.requestScan()
-        }
-    }
-
-    TechnologyModel {
-        id: networkingModel
-        name: "wifi"
-        property string networkName
-    }
-
-    NetworkManager { 
-        id: networkManager
-        onConnectedChanged: { if (connected) wifiIndicator.source = "icons/network-wireless-signal-excellent-symbolic.svg" }
-    }
-
-    UserAgent {
-        id: userAgent
-        onUserInputRequested: {
-            root.state = "popup"
-            scanTimer.running = false;
-            passwordInput.text = "";
-            console.log('user input requested: ' + networkingModel.networkName)
-            var view = { 
-                "fields": []
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "file:///run/battery/state.json");
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === XMLHttpRequest.DONE && xhr.responseText !== "") {
+                    try {
+                        var state = JSON.parse(xhr.responseText);
+                        batteryPercentage = state.soc !== undefined ? state.soc : batteryPercentage;
+                        batteryCharging = state.charging !== undefined ? state.charging : batteryCharging;
+                    } catch(e) { console.log("battery parse error: " + e); }
+                }
             };
-            for (var key in fields) {
-                view.fields.push({
-                    "name": key,
-                    "id": key.toLowerCase(),
-                    "type": fields[key]["Type"],
-                    "requirement": fields[key]["Requirement"]
-                });
-                console.log(key + ":");
-                for (var inkey in fields[key]) {
-                    console.log("    " + inkey + ": " + fields[key][inkey]);
-                }
-            }
-        }
-        onErrorReported: {
-            console.log('Error: ' + error);
-            notification.showNotification('Error: ' + error);
-            wifiIndicator.source = "icons/network-wireless-signal-none-symbolic.svg";
-        }
-    }
-
-    Process { id: process }
-
-    McuInfo {
-        id: mcuInfo
-        portName: "/dev/ttyS0"
-        portBaudRate: 115200
-
-        property variant batteryAttributes: 
-            { '4.20': 100, '3.99': 95, '3.97': 90, '3.92': 85, '3.87': 80, '3.83': 75, '3.79': 70, 
-              '3.75': 65, '3.73': 60, '3.70': 55, '3.68': 50, '3.66': 45, '3.65': 40, '3.63': 35, 
-              '3.62': 30, '3.60': 25, '3.58': 20, '3.545': 15, '3.51': 10, '3.42': 5, '3.00': 0 }
-
-        onButtonChanged: {
-            if (button == 1)
-                screenLocked = !screenLocked;
-            if (button == 3)
-                switchoffScreen = true;
-        }
-        onBatteryChanged: {
-            var currentVol = (battery/1000).toFixed(2); 
-            var sum = 0; 
-            queue.push(currentVol); 
-            if (queue.length > 10)
-                queue.shift()
-            for (var i = 0; i < queue.length; i++) {
-                sum += parseFloat(queue[i])
-            }
-            var meanVol = (sum/queue.length).toFixed(2);
-            for (var vol in batteryAttributes) {
-                if (meanVol >= parseFloat(vol)) { 
-                    var volPercent = batteryAttributes[vol];
-                    batteryPercentage = volPercent
-                    break;
-                }
-            }
-        }
-        onChargeChanged: {
-            if (charge == 4) batteryCharging = true 
-            if (charge == 5) batteryCharging = false 
-        }
-        onVersionChanged: {
-            console.log("MCU version: " + version)
-            mcuVersion = version;
-        }
-        Timer { 
-            interval: 1000; repeat: true; running: (mcuVersion === ""); onTriggered: mcuInfo.getVersion();
-        }
-    }
-
-    SoundEffect {
-        id: dockingSoundEffect
-        source: batteryCharging ? "file:///opt/cutiepi-shell/assets/data_sounds_effects_wav_Dock.wav" 
-            : "file:///opt/cutiepi-shell/assets/data_sounds_effects_wav_Undock.wav"
-        onSourceChanged: { 
-            dockingSoundEffect.play();
-            turnScreenOn();
-            if (root.state == "locked") { 
-                screenLocked = false;
-                idleTimer.start();
-            }
-        }
-    }
-
-    Accelerometer {
-        id: accel
-        active: sensorEnabled
-        dataRate: 30
-        onReadingChanged: {
-            var accX = accel.reading.x
-            var accY = accel.reading.y
-            var accZ = -accel.reading.z
-
-            var pitchAcc = Math.atan2(accY, accZ)*radians_to_degrees;
-            var rollAcc = Math.atan2(accX, accZ)*radians_to_degrees;
-
-            pitch = pitch * 0.98 + pitchAcc * 0.02;
-            roll = roll * 0.98 + rollAcc * 0.02;
-            
-            var tmp = orientation;
-
-            //update orientation
-            if(pitch >= 30.0)
-                tmp = 0
-            else if(pitch <= -30.0)
-                tmp = 180
-            if(roll >= 30.0)
-                tmp = 270
-            else if(roll <= -30.0)
-                tmp = 90 
-
-            orientation = tmp;
-        }
-    }
-
-    Gyroscope {
-        id: gyro
-        active: sensorEnabled
-        dataRate: 30
-        onReadingChanged: {
-            //integrate gyro rates to update angles (pitch and roll)
-            var dt=0.01 //10ms
-            pitch += gyro.reading.x*dt;
-            roll -= gyro.reading.y*dt;
+            xhr.send();
         }
     }
 
@@ -468,20 +317,6 @@ Window {
                     }
                 }
             }
-            Component {
-                id: tabTermView
-                Yat.Screen { 
-                    id: terminal
-                    property variant url: "cutiepi://terminal"
-                    property variant canGoBack: false 
-                    property variant title: "Terminal" 
-                    property variant icon: "icons/terminal-512.png"
-                    anchors.fill: parent 
-                    anchors.topMargin: 85
-                    font.pointSize: 8 
-                    z: 0
-                }
-            } 
             Component {
                 id: tabFactoryModeView 
                 FactoryMode {
@@ -679,7 +514,7 @@ Window {
                 anchors.topMargin: 65 
                 anchors.leftMargin: 0
                 z: 3
-                enabled: (root.state == "setting" || root.state == "popup" || root.state == "drawer" )
+                enabled: (root.state == "setting" || root.state == "drawer")
                 onClicked: { 
                     //console.log('overlayMouseArea clicked')
                     if ( root.state == "setting" || root.state == "drawer") 
@@ -942,91 +777,14 @@ Window {
                     color: "#ECEFF4"
                 }
 
-                // wifi scan result 
-                ListView {
-                    id: wifiListView
-                    visible: root.state == "setting" 
-                    clip: true
+                Text {
                     anchors {
-                        bottomMargin: 15
-                        topMargin: 15
-                        top: separator.bottom
-                        left: parent.left
-                        right: parent.right
-                        bottom: parent.bottom
+                        top: separator.bottom; topMargin: 20
+                        horizontalCenter: parent.horizontalCenter
                     }
-                    model: networkingModel
-                    delegate: Rectangle {
-                        height: 45
-                        width: wifiListView.visible ? wifiListView.width : 0
-                        color: 'transparent' 
-                        Row {
-                            width: parent.width - 40 
-                            height: parent.height
-                            spacing: 10
-
-                            Rectangle { 
-                                width: 30
-                                height: 20
-                                color: 'transparent'
-                                anchors.verticalCenter: parent.verticalCenter
-                                Text {
-                                    font.family: fontAwesome.name 
-                                    font.pixelSize: 12
-                                    text: (modelData.state == "online" || modelData.state == "ready") ? "\uf00c" : ""
-                                    color: "white"
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-                            Text {
-                                text: (modelData.name == "") ? "[Hidden Wifi]" : modelData.name
-                                color: "white"
-                                elide: Text.ElideRight
-                                width: 230
-                                anchors.verticalCenter: parent.verticalCenter
-                                font.pointSize: 9
-                            }
-                        }
-                        Row {
-                            anchors {
-                                right: parent.right
-                                top: parent.top
-                                bottom: parent.bottom
-                                rightMargin: 30
-                            }
-                            width: 50
-                            spacing: 10
-                            Rectangle {
-                                width: 20
-                                height: 20 
-                                color: 'transparent'
-                                anchors.verticalCenter: parent.verticalCenter
-                                Image { 
-                                    width: 20; height: width; sourceSize.width: width*2; sourceSize.height: height*2;
-                                    source: (modelData.security[0] == "none") ? "" : "icons/network-wireless-encrypted-symbolic.svg"
-                                }
-                            }
-                            Image {
-                                width: 20; height: width; sourceSize.width: width*2; sourceSize.height: height*2;
-                                source: if (modelData.strength >= 55 ) { return "icons/network-wireless-signal-excellent-symbolic.svg" }
-                                else if (modelData.strength >= 50 ) { return "icons/network-wireless-signal-good-symbolic.svg" }
-                                else if (modelData.strength >= 45 ) { return "icons/network-wireless-signal-ok-symbolic.svg" }
-                                else if (modelData.strength >= 30 ) { return "icons/network-wireless-signal-weak-symbolic.svg" }
-                                else { return "icons/network-wireless-signal-none-symbolic.svg" }
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            onClicked: {
-                                if (modelData.state == "idle" || modelData.state == "failure") {
-                                    networkingModel.networkName = modelData.name 
-                                    modelData.requestConnect()
-                                }
-                            }
-                        }
-                    }
+                    text: "Configure WiFi via connman"
+                    color: "white"
+                    font.pointSize: 9
                 }
             }
 
@@ -1081,16 +839,11 @@ Window {
                         width: 34; height: width; sourceSize.width: width*2; sourceSize.height: height*2;
                     }
 
-                    // wifi
+                    // wifi — static icon; connman manages the connection outside the shell
                     Image {
                         id: wifiIndicator
-                        source: if (networkManager.state == "idle") { "icons/network-wireless-signal-none-symbolic.svg" } // no wifi connection
-                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 55 ) { "icons/network-wireless-signal-excellent-symbolic.svg" } 
-                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 50 ) { "icons/network-wireless-signal-good-symbolic.svg" } 
-                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 45 ) { "icons/network-wireless-signal-ok-symbolic.svg" } 
-                            else if (networkManager.connected && networkManager.connectedWifi.strength >= 30 ) { "icons/network-wireless-signal-weak-symbolic.svg" } 
-                            else { "icons/network-wireless-connected-symbolic.svg" } 
-                        width: 34; height: width; sourceSize.width: width*2; sourceSize.height: height*2; 
+                        source: "icons/network-wireless-signal-none-symbolic.svg"
+                        width: 34; height: width; sourceSize.width: width*2; sourceSize.height: height*2;
                     }
 
                     Text {
@@ -1131,7 +884,7 @@ Window {
                     onTriggered: {
                         root.grabToImage(function(result) {
                             var fileName = Qt.formatDateTime(new Date(), "yyyy-MM-dd-hh-mm-ss") + ".png";
-                            result.saveToFile("/home/pi/Pictures/" + fileName);
+                            result.saveToFile("/root/Pictures/" + fileName);
                             console.log("Screenshot: " + fileName);
                             notification.showNotification("Screenshot saved to:\n" + fileName);
                         });
@@ -1139,115 +892,6 @@ Window {
                 }
             }
 
-            // popup 
-            Item {
-                id: popupScreen
-                z: 5 
-                visible: root.state == "popup"
-                anchors.fill: parent
-
-                Rectangle {
-                    id: overlay 
-                    anchors.fill: parent
-                    color: 'grey'
-                    opacity: 0.4
-                    MouseArea { anchors.fill: parent; enabled: popupScreen.visible }
-                }
-
-                Rectangle {
-                    id: dialog
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.top: parent.top; anchors.topMargin: 50 
-                    radius: 15; 
-                    width: 600; height: 300
-                    color: 'white'
-
-                    Text { 
-                        id: dialogTitle
-                        anchors {
-                            top: parent.top
-                            topMargin: 15 
-                            horizontalCenter: parent.horizontalCenter
-                        }
-                        text: 'Enter the password for "' + networkingModel.networkName + '"'
-                        wrapMode: Text.Wrap
-                        font.pointSize: 9
-                    }
-                    TextField {
-                        id: passwordInput
-                        anchors {
-                            top: dialogTitle.bottom
-                            horizontalCenter: parent.horizontalCenter
-                            margins: 10
-                            topMargin: 30
-                        }
-                        width: parent.width - 50
-                        height: 40
-                        font.pointSize: 9
-                        echoMode: showPassword.checked ? TextInput.Normal : TextInput.Password
-                    }
-                    CheckBox { 
-                        id: showPassword
-                        text: qsTr("Show password") 
-                        font.pointSize: 10
-                        checked: false
-                        anchors {
-                            top: passwordInput.bottom
-                            left: passwordInput.left
-                            margins: 30
-                            leftMargin: 10
-                        }
-                    }
-                    Row {
-                        anchors {
-                            left: parent.left
-                            bottom: parent.bottom; margins: 10
-                        }
-                        height: 60
-                        width: parent.width
-                        spacing: 340
-                        Rectangle {
-                            height: 60
-                            width: 120
-                            color: 'transparent'
-                            Text {
-                                text: 'Cancel' 
-                                font.pointSize: 10
-                                anchors.centerIn: parent
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    root.state = "normal";
-                                    userAgent.sendUserReply({});
-                                    scanTimer.running = true;
-                                }
-                            }
-                        }
-                        Rectangle {
-                            height: 60
-                            width: 120; radius: 10
-                            color: '#4875E2'
-                            Text {
-                                text: 'Join' 
-                                font.pointSize: 10
-                                font.bold: true
-                                anchors.centerIn: parent
-                                color: 'white'
-                            }
-                            MouseArea {
-                                anchors.fill: parent
-                                onClicked: {
-                                    root.state = "normal";
-                                    scanTimer.running = true;
-                                    userAgent.sendUserReply({"Passphrase": passwordInput.text });
-                                    wifiIndicator.source = "icons/network-wireless-acquiring-symbolic.svg";
-                                }
-                            }
-                        }
-                    }
-                }
-            } // end of popup 
 
 
             // on-screen keyboard 
@@ -1424,7 +1068,6 @@ Window {
                 PropertyChanges { target: settingSheet; y: 0 } 
             },
             State { name: "locked" }, 
-            State { name: "popup" }, 
             State { name: "switchoff" }, 
             State{
                 name: "drawer"
