@@ -1,6 +1,6 @@
-import QtQuick 2.15
-import QtMultimedia 5.15
-import QtQuick.Controls 2.15
+import QtQuick
+import QtMultimedia
+import QtQuick.Controls
 
 Rectangle {
     anchors.fill: parent
@@ -24,11 +24,12 @@ Rectangle {
                 id: mediaplayer
                 source: 'gst-pipeline: libcamerasrc ! video/x-raw,width=1920,height=1080,framerate=30/1 ! videoconvert ! qtvideosink'
                 autoPlay: true
+                videoOutput: cameraView
             }
 
             VideoOutput {
+                id: cameraView
                 width: 400; height: 300
-                source: mediaplayer
             }
 
             Row { 

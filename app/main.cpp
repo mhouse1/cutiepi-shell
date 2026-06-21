@@ -20,8 +20,8 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
-#include <QtWebEngine/qtwebengineglobal.h>
-#include <QtWebEngine/qquickwebengineprofile.h>
+#include <QtWebEngineQuick/qtwebenginequickglobal.h>
+#include <QtWebEngineQuick/qquickwebengineprofile.h>
 #include <QtWebEngineCore/qwebengineurlrequestinterceptor.h>
 #include <QDebug>
 #include <QThread>
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
     if (qgetenv("XDG_RUNTIME_DIR").isEmpty())
         qputenv("XDG_RUNTIME_DIR", "/tmp/user/0");
 
-    QtWebEngine::initialize();
+    QtWebEngineQuick::initialize();
     QGuiApplication app(argc, argv);
 
     app.setOrganizationName("CutiePi");

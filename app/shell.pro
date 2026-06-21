@@ -1,7 +1,7 @@
 TARGET = shell
 TEMPLATE = app
 CONFIG -= app_bundle
-QT += qml quick webengine core
+QT += qml quick webenginecore webenginequick core
 
 SOURCES = main.cpp
 

@@ -21,17 +21,17 @@
 
 */
 
-import QtQuick 2.15
-import QtQuick.Window 2.15
-import QtQuick.Controls 2.1
+import QtQuick
+import QtQuick.Window
+import QtQuick.Controls
 
-import QtWebEngine 1.7
-import QtQuick.VirtualKeyboard 2.2
-import QtQuick.VirtualKeyboard.Settings 2.2
-import QtQuick.LocalStorage 2.0
-import QtGraphicalEffects 1.0
+import QtWebEngine
+import QtQuick.VirtualKeyboard
+import QtQuick.VirtualKeyboard.Settings
+import QtQuick.LocalStorage
+import Qt5Compat.GraphicalEffects
 
-import Qt.labs.settings 1.0
+import Qt.labs.settings
 
 import MeeGo.Connman 0.2
 import Process 1.0
@@ -346,9 +346,9 @@ Window {
             Component {
                 id: tabWebView
                 WebView { 
-                    onLoadingChanged: { 
+                    onLoadingChanged: function(loadingInfo) {
                         urlText.text = Tab.itemMap[currentTab].url;
-                        if (loadRequest.status == WebEngineView.LoadSucceededStatus) {
+                        if (loadingInfo.status === WebEngineLoadingInfo.LoadSucceededStatus) {
                             Tab.updateHistory(Tab.itemMap[currentTab].url, Tab.itemMap[currentTab].title, Tab.itemMap[currentTab].icon)
                         }
                     }
