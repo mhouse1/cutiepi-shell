@@ -33,6 +33,7 @@ import Qt5Compat.GraphicalEffects
 
 import Qt.labs.settings
 
+import Connman
 import Process 1.0
 import "tabControl.js" as Tab
 
