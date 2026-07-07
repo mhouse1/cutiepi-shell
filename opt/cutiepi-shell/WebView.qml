@@ -24,10 +24,10 @@ WebEngineView {
         offTheRecord: false
     }
 
-    onNewViewRequested: function(request) {
+    onNewWindowRequested: function(request) {
         if (!request.userInitiated) {
             console.log('block popup')
-        } else if (request.destination === WebEngineView.NewViewInTab) {
+        } else if (request.destination === WebEngineNewWindowRequest.InNewTab) {
             openNewTab(request.requestedUrl)
         } else {
             openTab(request.requestedUrl)
@@ -37,10 +37,10 @@ WebEngineView {
 
     onContextMenuRequested: function(request) {
         //console.log(request.mediaUrl, request.mediaType);
-        if (request.x !== 0 && String(request.mediaUrl).length !== 0) {
+        if (request.position.x !== 0 && String(request.mediaUrl).length !== 0) {
             contextMenu.linkUrl = request.mediaUrl
-            contextMenu.x = request.x; contextMenu.y = request.y; 
-            contextMenu.visible = true 
+            contextMenu.x = request.position.x; contextMenu.y = request.position.y;
+            contextMenu.visible = true
         }
 	    request.accepted = true;
     }
