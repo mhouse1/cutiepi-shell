@@ -27,6 +27,7 @@
 #include <QThread>
 #include <QFile>
 #include <QCursor>
+#include <unistd.h>
 #include "backlight.h"
 
 #ifdef USE_ADBLOCK
@@ -71,15 +72,35 @@ private:
 
 int main(int argc, char *argv[])
 {
-    qputenv("QT_QPA_PLATFORM", "xcb");
     qputenv("DISPLAY", ":0.0");
     qputenv("QT_IM_MODULE", "qtvirtualkeyboard");
-    qputenv("QT_XCB_GL_INTEGRATION", "xcb_egl");
-    qputenv("QML_XHR_ALLOW_FILE_READ", "1");
+
+    QByteArray runtimeDir = qgetenv("XDG_RUNTIME_DIR");
+    if (runtimeDir.isEmpty()) {
+        runtimeDir = QByteArray("/tmp/user/") + QByteArray::number(getuid());
+        qputenv("XDG_RUNTIME_DIR", runtimeDir);
+    }
+
+    QByteArray dbusAddress = qgetenv("DBUS_SESSION_BUS_ADDRESS");
+    if (dbusAddress.isEmpty()) {
+        dbusAddress = "unix:path=" + runtimeDir + "/bus";
+        qputenv("DBUS_SESSION_BUS_ADDRESS", dbusAddress);
+    }
+
+    QByteArray platform = qgetenv("QT_QPA_PLATFORM");
+    if (platform.isEmpty()) {
+        platform = "eglfs";
+        qputenv("QT_QPA_PLATFORM", platform);
+    }
+
+    QByteArray allowFileRead = qgetenv("CUTIEPI_QML_XHR_ALLOW_FILE_READ");
+    if (!allowFileRead.isEmpty()) {
+        qputenv("QML_XHR_ALLOW_FILE_READ", allowFileRead);
+    } else {
+        qunsetenv("QML_XHR_ALLOW_FILE_READ");
+    }
 
     qputenv("QTWEBENGINE_DIALOG_SET", "QtQuickControls2");
-    qputenv("XDG_RUNTIME_DIR", "/run/user/1000");
-    qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=/run/user/1000/bus");
 
     QtWebEngine::initialize();
     QApplication app(argc, argv);

@@ -94,7 +94,7 @@ make
 - The service unit is at source/lib/systemd/system/cutiepi-shell.service.
 - Launcher script is source/opt/cutiepi-shell/cutiepi-shell.
 
-Important: the launcher script sets QT_QPA_PLATFORM=eglfs while source/app/main.cpp sets QT_QPA_PLATFORM=xcb at process startup. This should be treated as an active deployment ambiguity until unified.
+Note: neither the launcher script nor source/app/main.cpp hardcodes QT_QPA_PLATFORM anymore (CR-001, resolved - see docs/code-review/001-2026-05.md) - main.cpp only fills in a default (eglfs) when the environment doesn't already provide one, so the systemd service's `Environment=QT_QPA_PLATFORM=` value is authoritative. Caveat: the branch/commit meta-rpi64's Yocto recipe actually pins for the compiled binary is not this working tree - see mos-docker/docs/code-review/001-2026-07.md.
 
 ## Documentation
 

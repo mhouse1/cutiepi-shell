@@ -1,10 +1,17 @@
 [Unit]
 Description=CutiePi Shell
-After=systemd-user-sessions.service
+After=systemd-user-sessions.service connman.service dbus.service upspack-monitor.service
+Wants=connman.service dbus.service upspack-monitor.service
 
 [Service]
-User=pi
-WorkingDirectory=/home/pi
+User=root
+WorkingDirectory=/root
+Environment=QT_QPA_PLATFORM=eglfs
+Environment=QT_QPA_EGLFS_INTEGRATION=eglfs_kms
+Environment=QT_QPA_EGLFS_KMS_CONFIG=/opt/cutiepi-shell/kms.conf
+Environment=XDG_RUNTIME_DIR=/tmp/user/0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/user/0/bus
+ExecStartPre=/bin/mkdir -p /tmp/user/0
 ExecStart=/opt/cutiepi-shell/cutiepi-shell
 Restart=always
 
