@@ -81,10 +81,14 @@ Window {
 
     function loadUrlWrapper(url) { Tab.loadUrl(url) }
 
-    function turnScreenOn() { setScreenBrightness(50 + brightnessSlider.value) }
-    function turnScreenOff() { setScreenBrightness(0) }
+    // Brightness control removed - assets/setBrightness.py drives GPIO 12 via PWM, wired
+    // specifically to the original custom board's backlight circuit. The target hardware is
+    // now a standard HDMI display over USB-C, which has no host-controllable backlight at all
+    // (brightness is handled by the monitor's own OSD) - GPIO 12 has no confirmed function on
+    // the Waveshare baseboard, so continuing to drive it via PWM is a real (if unconfirmed)
+    // risk of hitting something else entirely, not just a no-op. Ported neither master's
+    // persistence/floor-protection fix nor this feature - removed outright.
     function setAudioVolume(vol) { process.start("amixer", ["set", "Master", vol+"%"]); }
-    function setScreenBrightness(val) { process.start("/opt/cutiepi-shell/assets/setBrightness", [val]); }
 
     function setSystemClock() {
         systemClock.text = Qt.formatDateTime(new Date(), formatDateTimeString);
@@ -94,16 +98,12 @@ Window {
 
     onScreenLockedChanged: {
         if (screenLocked) {
-            turnScreenOff();
             root.state = "locked";
             orientation = 270;
-        } else {
-            turnScreenOn();
         }
     }
 
     onSwitchoffScreenChanged: {
-        turnScreenOn();
         if (switchoffScreen) {
             root.state = "switchoff";
         } else {
@@ -748,72 +748,16 @@ Window {
                     }
                 }
 
-                Rectangle{
-                    id: brightnessControl
-                    anchors{
-                        topMargin: 20
-                        top: orientationLock.bottom
-                        left: parent.left
-                        right: parent.right
-                    }
-
-                    width: parent.width - 25
-                    height: 40
-                    color: "transparent"
-
-                        Text {
-                            id: brightnessIcon
-                            text: "\uf0eb"
-                            font.family: fontAwesome.name
-                            color: "white"
-                            anchors{
-                                verticalCenter: parent.verticalCenter
-                                left: parent.left
-                                leftMargin: 20
-                            }
-                            font.pointSize: 10
-                        }
-                        Slider { 
-                            id: brightnessSlider
-                            from: 0; to: 50; stepSize: 10; value: 50; 
-                            anchors {
-                                left: brightnessIcon.right
-                                leftMargin: 15
-                                right: parent.right
-                                rightMargin: 15
-                                verticalCenter: parent.verticalCenter
-
-                            }
-                            background: Rectangle {
-                                x: brightnessSlider.leftPadding
-                                y: brightnessSlider.topPadding + brightnessSlider.availableHeight / 2 - height / 2
-                                implicitWidth: 200
-                                implicitHeight: 4
-                                width: brightnessSlider.availableWidth
-                                height: implicitHeight
-                                radius: 2
-                                color: "#bdbebf"
-
-                                Rectangle {
-                                    width: brightnessSlider.visualPosition * parent.width
-                                    height: parent.height
-                                    color: "#4875E2"
-                                    radius: 2
-                                }
-                            }
-                            onValueChanged: {
-                                setScreenBrightness(50+value)
-                            }
-		                }
-                }
-
+                // Brightness slider removed along with GPIO-PWM brightness control - see the
+                // setAudioVolume comment above for why. The target HDMI display has no
+                // host-controllable backlight for this to drive.
                 // separator
                 Rectangle{
                     id: separator
                     anchors{
                         right: parent.right
                         left:parent.left
-                        top: brightnessControl.bottom
+                        top: orientationLock.bottom
                         topMargin: 20
                         leftMargin: 20; rightMargin: 20
                     }
@@ -1023,6 +967,10 @@ Window {
                         anchors { top: dialogTitle.bottom; horizontalCenter: parent.horizontalCenter; margins: 10; topMargin: 30 }
                         width: parent.width - 50; height: 40; font.pointSize: 9
                         echoMode: showPassword.checked ? TextInput.Normal : TextInput.Password
+                        // Without this, the virtual keyboard auto-capitalizes the first
+                        // character and offers predictive text, silently corrupting
+                        // case-sensitive WPA passwords - ported from cutiepi-shell master (1d272f0).
+                        inputMethodHints: Qt.ImhNoAutoUppercase | Qt.ImhNoPredictiveText
                     }
                     CheckBox {
                         id: showPassword
@@ -1131,12 +1079,11 @@ Window {
                 Timer {
                     id: idleTimer
                     running: false; interval: 8000;
-                    onTriggered: { 
-                        if (root.state == "locked") { // dim the screen after 8s idle 
-                            screenLocked = true; 
-                            turnScreenOff();
+                    onTriggered: {
+                        if (root.state == "locked") {
+                            screenLocked = true;
                         }
-                    } 
+                    }
                 }
                 NumberAnimation { id: bounce; target: lockscreen; properties: "y"; to: 0; easing.type: Easing.InOutQuad; duration: 200 }
                 Text { 

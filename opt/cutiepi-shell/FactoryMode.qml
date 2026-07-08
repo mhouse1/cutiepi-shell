@@ -32,15 +32,15 @@ Rectangle {
                 width: 400; height: 300
             }
 
-            Row { 
-                spacing: 20; 
-                Text { text: "Microphone/Speaker: " } 
-                Button { 
-                    text: "Record"; onClicked: process.start("arecord", ["-f", 'S16_LE', "-D", "hw:2,0", "-d", "5", "/tmp/record.wav"] )
-                } 
-                Button { 
-                    text: "Play"; onClicked: process.start("aplay", ["/tmp/record.wav"] )
-                } 
+            // Mic test stubbed out - this board (Waveshare CM4-DUAL-ETH-4G/5G-BASE) has no
+            // microphone hardware and isn't expected to gain one. hw:2,0 doesn't exist here.
+            // Buttons disabled rather than left pointing at a nonexistent capture device.
+            Row {
+                spacing: 20;
+                Text { text: "Microphone/Speaker: " }
+                Button {
+                    text: "N/A - no mic on this board"; enabled: false;
+                }
             }
         }
     }

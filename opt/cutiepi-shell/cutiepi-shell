@@ -1,21 +1,46 @@
 #!/bin/bash
 
-export XDG_RUNTIME_DIR="/run/user/1000"
-export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus"
+set -u
 
-export QT_QPA_PLATFORM=eglfs
-export QT_QPA_EGLFS_INTEGRATION=eglfs_kms
-export QT_IM_MODULE=qtvirtualkeyboard
+if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+    export XDG_RUNTIME_DIR="/tmp/user/$(id -u)"
+fi
+mkdir -p "${XDG_RUNTIME_DIR}"
+chmod 700 "${XDG_RUNTIME_DIR}" 2>/dev/null || true
 
-#export QT_VIRTUALKEYBOARD_LAYOUT_PATH=/opt/cutiepi-shell/layouts/
-#export QT_QPA_EGLFS_KMS_CONFIG=/opt/cutiepi-shell/kms.conf
-
-if [ ! "`systemctl is-active connman`" == "active" ]; then 
-    sudo service connman start 
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
 fi
 
-rfkill unblock all
-sudo cpufreq-set -g ondemand
+if [ -z "${QT_IM_MODULE:-}" ]; then
+    export QT_IM_MODULE=qtvirtualkeyboard
+fi
 
-#/opt/qt5/bin/qmlscene /opt/cutiepi-shell/shell.qml
-/opt/cutiepi-shell/shell
+if [ ! "$(systemctl is-active connman 2>/dev/null)" = "active" ]; then
+    service connman start 2>/dev/null || true
+fi
+
+rfkill unblock all 2>/dev/null || true
+
+if command -v cpufreq-set >/dev/null 2>&1; then
+    cpufreq-set -g ondemand 2>/dev/null || true
+fi
+
+# Wait (bounded, up to 10s) for the DRM/KMS display kms.conf targets (HDMI-A-1) to be
+# enumerated before starting the heavy Qt/WebEngine process. Observed cutiepi-shell.service
+# crash-looping on Test_Coachwhip_HIL HIL runs with "drmModeGetResources failed (Operation not
+# supported)" / "Cannot create window: no screens available" (SIGABRT) - NRestarts climbed
+# during steady-state uptime with no reboot in between, consistent with a boot-time enumeration
+# race rather than a permanently missing display. Falls through after the timeout regardless,
+# so a genuinely display-less unit still starts (Restart=always remains the final safety net).
+tries=20
+while [ "$tries" -gt 0 ]; do
+    for status_file in /sys/class/drm/card*-HDMI-A-1/status; do
+        [ -e "$status_file" ] && tries=0 && break
+    done
+    [ "$tries" -eq 0 ] && break
+    sleep 0.5
+    tries=$((tries - 1))
+done
+
+exec /opt/cutiepi-shell/shell

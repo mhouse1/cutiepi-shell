@@ -20,7 +20,10 @@ WebEngineView {
 
     WebEngineProfile {
         id: defaultProfile
-        httpUserAgent: "Mozilla/5.0 (X11; CrOS armv7l 10895.56.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.102 Safari/537.36"
+        // Spoofed ChromeOS UA (Chrome/69, 2018) was getting Google Sign-In and other sites to
+        // reject/block login outright - ported from cutiepi-shell master (db2026f/2359a61).
+        // Leave unset so QtWebEngine sends its own real, current Chromium UA.
+        //httpUserAgent: "Mozilla/5.0 (X11; CrOS armv7l 10895.56.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/69.0.3497.102 Safari/537.36"
         offTheRecord: false
     }
 

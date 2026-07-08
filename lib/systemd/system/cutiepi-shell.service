@@ -1,12 +1,26 @@
 [Unit]
 Description=CutiePi Shell
-After=systemd-user-sessions.service
+# systemd-udev-settle ensures device coldplug (including DRM/KMS device nodes under
+# /dev/dri) has finished before the first launch attempt - observed crash-looping on
+# Test_Coachwhip_HIL HIL runs with "drmModeGetResources failed (Operation not supported)" /
+# "Cannot create window: no screens available" (SIGABRT), NRestarts climbing during steady-state
+# uptime with no reboot in between. The launcher script's own wait-for-display loop is the
+# primary mitigation; this ordering closes the same race at the systemd level too.
+After=systemd-user-sessions.service connman.service dbus.service upspack-monitor.service systemd-udev-settle.service
+Wants=connman.service dbus.service upspack-monitor.service systemd-udev-settle.service
 
 [Service]
-User=pi
-WorkingDirectory=/home/pi
+User=root
+WorkingDirectory=/root
+Environment=QT_QPA_PLATFORM=eglfs
+Environment=QT_QPA_EGLFS_INTEGRATION=eglfs_kms
+Environment=QT_QPA_EGLFS_KMS_CONFIG=/opt/cutiepi-shell/kms.conf
+Environment=XDG_RUNTIME_DIR=/tmp/user/0
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/user/0/bus
+ExecStartPre=/bin/mkdir -p /tmp/user/0
 ExecStart=/opt/cutiepi-shell/cutiepi-shell
 Restart=always
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
