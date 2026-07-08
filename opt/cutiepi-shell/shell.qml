@@ -431,7 +431,10 @@ Window {
                 Text { 
                     visible: hasTabOpen && (Tab.itemMap[currentTab].url.toString().match('cutiepi://') )
                     anchors {  left: hamburgerButton.right; leftMargin: 30; verticalCenter: parent.verticalCenter } 
-                    text: Tab.itemMap[currentTab].title; color: "#3e3e3e"; font.pointSize: 12
+                    // Every sibling binding here guards with hasTabOpen (it already checks
+                    // Tab.itemMap[currentTab] isn't undefined) - this one didn't, and crashed
+                    // with no tab open at startup once Factory Mode stopped auto-opening.
+                    text: hasTabOpen ? Tab.itemMap[currentTab].title : ""; color: "#3e3e3e"; font.pointSize: 12
                 }
 
                 Item {
