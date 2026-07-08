@@ -20,11 +20,8 @@ if [ ! "$(systemctl is-active connman 2>/dev/null)" = "active" ]; then
     service connman start 2>/dev/null || true
 fi
 
-rfkill unblock all 2>/dev/null || true
-
-if command -v cpufreq-set >/dev/null 2>&1; then
-    cpufreq-set -g ondemand 2>/dev/null || true
-fi
+# rfkill/cpufreq-set moved to the unit's root-only ExecStartPre=+ - this script now runs
+# as an unprivileged user (see cutiepi-shell.service) and can't do either itself.
 
 # Wait (bounded, up to 10s) for the DRM/KMS display kms.conf targets (HDMI-A-1) to be
 # enumerated before starting the heavy Qt/WebEngine process. Observed cutiepi-shell.service

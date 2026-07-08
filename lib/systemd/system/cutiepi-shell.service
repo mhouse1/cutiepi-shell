@@ -10,14 +10,29 @@ After=systemd-user-sessions.service connman.service dbus.service upspack-monitor
 Wants=connman.service dbus.service upspack-monitor.service systemd-udev-settle.service
 
 [Service]
-User=root
-WorkingDirectory=/root
+# Runs unprivileged (not root) so QtWebEngine's Chromium sandbox can actually activate -
+# Chromium's zygote refuses to fork sandboxed renderers as root (crbug.com/638180):
+# confirmed on real hardware, cutiepi-shell exited with status 1/FAILURE ("Running as root
+# without --no-sandbox is not supported") the first time a WebEngineView needed to render,
+# i.e. as soon as someone typed a URL/search and hit enter. video/render/audio group
+# membership (see brumation.sample) covers /dev/dri and /dev/snd device access.
+User=cutiepi
+WorkingDirectory=/home/cutiepi
 Environment=QT_QPA_PLATFORM=eglfs
 Environment=QT_QPA_EGLFS_INTEGRATION=eglfs_kms
 Environment=QT_QPA_EGLFS_KMS_CONFIG=/opt/cutiepi-shell/kms.conf
-Environment=XDG_RUNTIME_DIR=/tmp/user/0
-Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/user/0/bus
-ExecStartPre=/bin/mkdir -p /tmp/user/0
+# No hardcoded XDG_RUNTIME_DIR/DBUS_SESSION_BUS_ADDRESS here (both used to say uid 0,
+# root's uid, which no longer matches the running user) - the launcher script computes
+# these from $(id -u) itself and creates the directory.
+# shell.qml polls /run/battery/state.json via XMLHttpRequest every 30s; QML's XHR blocks
+# local file:// reads by default, so battery status has never actually worked
+# ("XMLHttpRequest: Using GET on a local file is disabled by default" every 30s in the
+# journal, confirmed on real hardware).
+Environment=QML_XHR_ALLOW_FILE_READ=1
+# rfkill/cpufreq-set need root (raw rfkill state, and cpufreq's sysfs governor file is
+# root-only) - the '+' prefix runs just this line as root regardless of User= above, once
+# at boot, before dropping to the unprivileged user for the actual application.
+ExecStartPre=+/bin/sh -c 'rfkill unblock all; cpufreq-set -g ondemand || true'
 ExecStart=/opt/cutiepi-shell/cutiepi-shell
 Restart=always
 RestartSec=3

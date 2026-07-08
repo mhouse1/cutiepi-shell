@@ -65,7 +65,11 @@ Item {
                     if(switchoffThumb.x >= (switchoffSlider.width - switchoffThumb.width - 10)){
                         switchoffThumb.x = 5;
                         switchoffScreen = false;
-                        process.start("systemctl", ["poweroff"]);
+                        // cutiepi-shell.service runs as an unprivileged user (see
+                        // cutiepi-shell.service) - sudo with a narrow NOPASSWD grant for just
+                        // this command (meta-rpi64 recipes-qt/cutiepi-shell/files/cutiepi-shell.sudoers)
+                        // is the escalation path back to actually being able to power off.
+                        process.start("sudo", ["systemctl", "poweroff"]);
                     }
                 }
             }
