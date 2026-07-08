@@ -9,16 +9,24 @@ Rectangle {
     Row {
         anchors.fill: parent
         anchors.margins: 100
-        spacing: 50 
-        Component.onCompleted: mcuInfo.getVersion();
+        spacing: 50
+        // mcuInfo/accel are never registered as context properties on this board (no MCU or
+        // accelerometer, unlike the original custom board this screen was written for) -
+        // referencing them unconditionally threw ReferenceErrors that aborted the whole shell
+        // on every single boot, since Factory Testing Mode used to auto-open unconditionally
+        // (see shell.qml Component.onCompleted). Guarded the same way WebView.qml already
+        // guards adblockProfile.
+        Component.onCompleted: {
+            if (typeof(mcuInfo) !== "undefined") mcuInfo.getVersion();
+        }
 
         Column {
             width: parent.width/2
             spacing: 10
-            Text { text: "Firmware version: " + mcuInfo.version }
-            Text { text: "Charging status: " + ( (mcuInfo.charge == 4) ? "true" : "false" ) }
-            Text { text: "Measured voltage: " + (mcuInfo.battery/1000).toFixed(3);  }
-            Text { text: "Accelerometer: " + accel.reading.x.toFixed(3) + ", " + accel.reading.y.toFixed(3) + ", " + accel.reading.z.toFixed(3) }
+            Text { text: "Firmware version: " + ((typeof(mcuInfo) !== "undefined") ? mcuInfo.version : "N/A (no MCU on this board)") }
+            Text { text: "Charging status: " + ((typeof(mcuInfo) !== "undefined") ? ((mcuInfo.charge == 4) ? "true" : "false") : "N/A (no MCU on this board)") }
+            Text { text: "Measured voltage: " + ((typeof(mcuInfo) !== "undefined") ? (mcuInfo.battery/1000).toFixed(3) : "N/A (no MCU on this board)") }
+            Text { text: "Accelerometer: " + ((typeof(accel) !== "undefined") ? (accel.reading.x.toFixed(3) + ", " + accel.reading.y.toFixed(3) + ", " + accel.reading.z.toFixed(3)) : "N/A (no accelerometer on this board)") }
 
             MediaPlayer {
                 id: mediaplayer

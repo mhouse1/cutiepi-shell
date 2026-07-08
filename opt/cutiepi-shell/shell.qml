@@ -74,7 +74,13 @@ Window {
     }
 
     Component.onCompleted: {
-        Tab.openNewAppTab("page-"+Tab.salt(), 'factorymode');
+        // Factory Testing Mode used to auto-open on every single boot here - fatal on this
+        // board: FactoryMode.qml references mcuInfo/accel unconditionally (no MCU or
+        // accelerometer exist here), throwing ReferenceErrors that aborted the whole shell
+        // every single startup (confirmed via Test_Coachwhip_HIL build 31 journal). Not
+        // something a shipped device should auto-open anyway - master gates the equivalent
+        // behind an explicit "untested" setting, defaulting to off. FactoryMode.qml itself is
+        // also now guarded (see its own comments) in case it's ever reached deliberately.
         process.start("rfkill", ["unblock", "all"]);
         setAudioVolume(80);
     }
