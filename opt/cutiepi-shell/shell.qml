@@ -55,7 +55,12 @@ Window {
     property variant wallpaperUrl: settings.value("wallpaperUrl", "file:///usr/share/rpd-wallpaper/boombox.png");
     property variant wallpaperFontColor: 'white' // '#525353'
 
-    property variant orientation: 270
+    // Waveshare HDMI touchscreen needs a 90-deg-clockwise nudge from the original CutiePi
+    // panel's default. Only the base value needs to change: InputPanel below is nested inside
+    // `root` (which already applies `rotation: orientation`) and re-applies the same
+    // `orientation` value as its own local rotation, so its absolute on-screen rotation is
+    // orientation*2 - a +90 delta here also gives the keyboard the +180 delta it needs.
+    property variant orientation: 0
     property variant portraitMode: (orientation === 180 || orientation === 0)
     property variant sensorEnabled: false
     property variant keyboardPosition: { 
@@ -105,7 +110,7 @@ Window {
     onScreenLockedChanged: {
         if (screenLocked) {
             root.state = "locked";
-            orientation = 270;
+            orientation = 0;
         }
     }
 
