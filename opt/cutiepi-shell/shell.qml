@@ -37,8 +37,11 @@ import Connman
 import Process 1.0
 import "tabControl.js" as Tab
 
-Window {  
+Window {
     id: view
+    // These are only an initial size hint, not necessarily what eglfs actually renders at -
+    // root below sizes itself from Screen.width/Screen.height instead, which always reflects
+    // the real physical display.
     width: 800
     height: 1280
     visible: true
@@ -186,11 +189,14 @@ Window {
         color: "#ececec"
         // This is a 1920x1080 landscape HDMI touchscreen (USB-C for touch), mounted normally -
         // unlike the original CutiePi tablet's native 800x1280 portrait panel, it needs no
-        // rotation at all. anchors.fill replaces the old fixed 800x1280/1280x800 sizing (which
-        // only ever matched the tablet panel, and on this hardware left most of the screen
-        // blank with the UI squeezed into a narrow portrait strip) so this fills whatever the
-        // real screen turns out to be instead of a hardcoded resolution.
-        anchors.fill: parent
+        // rotation at all. Sized from Screen.width/height (the real physical display, always
+        // accurate under eglfs) rather than the old fixed 800x1280/1280x800 sizing, or
+        // anchors.fill: parent, which would just track the Window's own literal width/height
+        // QML properties above (800x1280) - not necessarily what eglfs actually renders at.
+        width: Screen.width
+        height: Screen.height
+        x: 0
+        y: 0
 
         FontLoader {
             id: fontAwesome
