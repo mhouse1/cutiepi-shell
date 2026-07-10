@@ -55,20 +55,12 @@ Window {
     property variant wallpaperUrl: settings.value("wallpaperUrl", "file:///usr/share/rpd-wallpaper/boombox.png");
     property variant wallpaperFontColor: 'white' // '#525353'
 
-    // Waveshare HDMI touchscreen needs a 90-deg-clockwise nudge from the original CutiePi
-    // panel's default. Only the base value needs to change: InputPanel below is nested inside
-    // `root` (which already applies `rotation: orientation`) and re-applies the same
-    // `orientation` value as its own local rotation, so its absolute on-screen rotation is
-    // orientation*2 - a +90 delta here also gives the keyboard the +180 delta it needs.
-    property variant orientation: 0
-    property variant portraitMode: (orientation === 180 || orientation === 0)
+    // The original CutiePi tablet's native 800x1280 portrait panel needed `orientation` and
+    // `portraitMode` to rotate a landscape UI into that portrait frame, and a hand-tuned
+    // keyboardPosition lookup table per rotation. This hardware is a 1920x1080 landscape
+    // HDMI touchscreen mounted normally - no rotation trick needed, so root and the on-screen
+    // keyboard below now just anchor/fill to whatever the real screen size is instead.
     property variant sensorEnabled: false
-    property variant keyboardPosition: { 
-        '270': { x: -40, y: 440, hidden_x: 360, hidden_y: 440 }, 
-        '180': { x: 0,  y: 0, hidden_x: 0, hidden_y: -250 }, 
-        '90': { x: -440, y: 440, hidden_x: -840, hidden_y: 440 }, 
-        '0': { x: 0, y: 1030, hidden_x: 0, hidden_y: 1280 } 
-    } 
 
     property string currentTab: ""
     property bool hasTabOpen: (tabModel.count !== 0) && (typeof(Tab.itemMap[currentTab]) !== "undefined")
@@ -110,7 +102,6 @@ Window {
     onScreenLockedChanged: {
         if (screenLocked) {
             root.state = "locked";
-            orientation = 0;
         }
     }
 
@@ -193,20 +184,17 @@ Window {
     Rectangle {
         id: root
         color: "#ececec"
-        width: portraitMode ? 800 : 1280
-        height: portraitMode ? 1280 : 800 
+        // This is a 1920x1080 landscape HDMI touchscreen (USB-C for touch), mounted normally -
+        // unlike the original CutiePi tablet's native 800x1280 portrait panel, it needs no
+        // rotation at all. anchors.fill replaces the old fixed 800x1280/1280x800 sizing (which
+        // only ever matched the tablet panel, and on this hardware left most of the screen
+        // blank with the UI squeezed into a narrow portrait strip) so this fills whatever the
+        // real screen turns out to be instead of a hardcoded resolution.
+        anchors.fill: parent
 
         FontLoader {
             id: fontAwesome
-            source: "file:///opt/cutiepi-shell/Font Awesome 5 Free-Solid-900.otf" 
-        }
-
-        // control the rotation of view 
-        x: portraitMode ? 0 : -240
-        y: portraitMode ? 0 : 240
-        rotation: orientation
-        Behavior on rotation {
-            RotationAnimator { duration: 150; easing.type: Easing.InOutQuad; direction: RotationAnimator.Shortest }
+            source: "file:///opt/cutiepi-shell/Font Awesome 5 Free-Solid-900.otf"
         }
 
         Rectangle {
@@ -1023,14 +1011,16 @@ Window {
                 }
             }
 
-            // on-screen keyboard 
+            // on-screen keyboard - slides up from the bottom edge, sized to root's real
+            // (screen-filling) width rather than the old CutiePi-panel-specific
+            // keyboardPosition lookup table, which was tuned for an 800x1280 canvas and had
+            // no entry that made sense on this 1920x1080 landscape monitor.
             InputPanel {
                 id: inputPanel
                 z: 89
-                x: keyboardPosition[view.orientation].hidden_x
-                y: keyboardPosition[view.orientation].hidden_y
-                width: portraitMode ? 800 : 1280
-                rotation: orientation
+                x: 0
+                y: root.height
+                width: root.width
                 visible: false
                 onActiveChanged: visible = true
 
@@ -1039,8 +1029,8 @@ Window {
                     when: inputPanel.active && root.state != "locked" && root.state != "switchoff"
                     PropertyChanges {
                         target: inputPanel
-                        x: view.keyboardPosition[view.orientation].x
-                        y: view.keyboardPosition[view.orientation].y
+                        x: 0
+                        y: root.height - inputPanel.height
                     }
                 }
                 transitions: Transition {
